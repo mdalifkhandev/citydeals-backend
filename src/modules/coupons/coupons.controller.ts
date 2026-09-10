@@ -7,6 +7,7 @@ import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { CouponsService } from './coupons.service.js';
 import { CreateCouponDto } from './dto/create-coupon.dto.js';
 import { FilterCouponDto } from './dto/filter-coupon.dto.js';
+import { UpdateCouponDto } from './dto/update-coupon.dto.js';
 
 @ApiTags('Coupons')
 @Controller('coupons')
@@ -58,7 +59,7 @@ export class CouponsController {
   @ApiBearerAuth('access-token')
   @Roles('ADMIN', 'ADVERTISER')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: Partial<CreateCouponDto>) {
+  update(@Param('id') id: string, @Body() dto: UpdateCouponDto = {}) {
     return this.couponsService.update(id, dto);
   }
 

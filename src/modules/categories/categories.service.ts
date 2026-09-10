@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
 import { CreateCategoryDto } from './dto/create-category.dto.js';
+import { UpdateCategoryDto } from './dto/update-category.dto.js';
 
 @Injectable()
 export class CategoriesService {
@@ -14,12 +15,18 @@ export class CategoriesService {
     return this.prisma.category.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
   }
 
-  async findCoupons(categorySlug: string, areaSlug?: string) {
-    const category = await this.prisma.category.findUnique({ where: { slug: categorySlug } });
+  async findCoupons(categorySlugOrId: string, areaSlug?: string) {
+    const category = await this.prisma.category.findFirst({
+      where: { OR: [{ slug: categorySlugOrId }, { id: categorySlugOrId }] },
+    });
+    if (!category) throw new NotFoundException('Category not found');
+
     const area = areaSlug ? await this.prisma.area.findUnique({ where: { slug: areaSlug } }) : null;
+    if (areaSlug && !area) throw new NotFoundException('Area not found');
+
     return this.prisma.coupon.findMany({
       where: {
-        categoryId: category?.id ?? '__missing__',
+        categoryId: category.id,
         areaId: area?.id,
         status: 'ACTIVE',
       },
@@ -28,7 +35,10 @@ export class CategoriesService {
     });
   }
 
-  update(id: string, dto: Partial<CreateCategoryDto>) {
+  update(id: string, dto: UpdateCategoryDto = {}) {
+    if (Object.keys(dto).length === 0) {
+      throw new BadRequestException('At least one category field is required');
+    }
     return this.prisma.category.update({ where: { id }, data: dto });
   }
 

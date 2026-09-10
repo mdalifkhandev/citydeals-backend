@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service.js';
 import { CreateCouponDto } from './dto/create-coupon.dto.js';
 import { FilterCouponDto } from './dto/filter-coupon.dto.js';
+import { UpdateCouponDto } from './dto/update-coupon.dto.js';
 
 @Injectable()
 export class CouponsService {
@@ -84,13 +85,14 @@ export class CouponsService {
     });
   }
 
-  update(id: string, dto: Partial<CreateCouponDto>) {
+  update(id: string, dto: UpdateCouponDto = {}) {
+    const { startsAt, expiresAt, ...data } = dto;
     return this.prisma.coupon.update({
       where: { id },
       data: {
-        ...dto,
-        startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
-        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
+        ...data,
+        startsAt: startsAt ? new Date(startsAt) : undefined,
+        expiresAt: expiresAt ? new Date(expiresAt) : undefined,
       },
     });
   }
