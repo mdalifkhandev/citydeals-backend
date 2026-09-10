@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
@@ -52,5 +52,21 @@ export class CouponsController {
   @Delete(':id/save')
   unsaveCoupon(@GetUser() user: { id: string }, @Param('id') id: string) {
     return this.couponsService.unsaveCoupon(user.id, id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('access-token')
+  @Roles('ADMIN', 'ADVERTISER')
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: Partial<CreateCouponDto>) {
+    return this.couponsService.update(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('access-token')
+  @Roles('ADMIN')
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.couponsService.remove(id);
   }
 }

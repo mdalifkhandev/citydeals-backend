@@ -16,6 +16,7 @@ export class NotificationsProcessor extends WorkerHost {
 
   async process(job: Job<SendNotificationDto>) {
     const { userId, merchantId } = job.data;
+    if (!userId || !merchantId) return { skipped: true, reason: 'missing_proximity_target' };
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { notificationsPaused: true },

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
@@ -27,5 +27,21 @@ export class CategoriesController {
   @Get(':slug/coupons')
   findCoupons(@Param('slug') slug: string, @Query('areaSlug') areaSlug?: string) {
     return this.categoriesService.findCoupons(slug, areaSlug);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('access-token')
+  @Roles('ADMIN')
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: Partial<CreateCategoryDto>) {
+    return this.categoriesService.update(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('access-token')
+  @Roles('ADMIN')
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.categoriesService.remove(id);
   }
 }

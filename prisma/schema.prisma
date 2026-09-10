@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -20,6 +19,24 @@ enum CouponStatus {
   SUSPENDED
 }
 
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum ContentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum RedemptionFrequency {
+  ONE_TIME
+  DAILY
+  WEEKLY
+  UNLIMITED
+}
+
 model User {
   id                 String   @id @default(cuid())
   fullName           String?
@@ -30,6 +47,7 @@ model User {
   notificationsPaused Boolean @default(false)
   passwordHash       String
   role               Role     @default(USER)
+  status             UserStatus @default(ACTIVE)
   areaId             String?
   preferredLanguage  String   @default("en")
   acceptedTerms      Boolean  @default(false)
@@ -75,11 +93,14 @@ model Category {
   name      String
   slug      String   @unique
   iconUrl   String?
+  description String?
+  status    ContentStatus @default(ACTIVE)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   coupons   Coupon[]
+  merchants Merchant[]
 
   @@index([slug])
 }
@@ -88,9 +109,20 @@ model Merchant {
   id          String   @id @default(cuid())
   name        String
   description String?
+  titleText   String?
+  logoUrl     String?
+  categoryId  String?
   areaId      String
   ownerId     String?
   address     String
+  phone       String?
+  email       String?
+  websiteUrl  String?
+  instagramUrl String?
+  facebookUrl String?
+  tiktokUrl   String?
+  radiusMeters Int     @default(3000)
+  status      ContentStatus @default(ACTIVE)
   latitude    Decimal  @db.Decimal(9, 6)
   longitude   Decimal  @db.Decimal(9, 6)
   createdAt   DateTime @default(now())
@@ -98,10 +130,12 @@ model Merchant {
 
   area                  Area                   @relation(fields: [areaId], references: [id])
   owner                 User?                  @relation(fields: [ownerId], references: [id])
+  category              Category?              @relation(fields: [categoryId], references: [id])
   coupons               Coupon[]
   notificationCooldowns NotificationCooldown[]
 
   @@index([areaId])
+  @@index([categoryId])
 }
 
 model Coupon {
@@ -109,6 +143,12 @@ model Coupon {
   title       String
   description String
   imageUrl    String?
+  couponCode  String?
+  couponLink  String?
+  redemptionLimit Int?
+  redemptionFrequency RedemptionFrequency @default(ONE_TIME)
+  discussion  String?
+  terms       String?
   shareSlug   String       @unique
   status      CouponStatus @default(DRAFT)
   startsAt    DateTime?
@@ -129,6 +169,25 @@ model Coupon {
   @@index([areaId, status])
   @@index([categoryId])
   @@index([merchantId])
+}
+
+model StaffRole {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  key         String   @unique
+  permissions Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model StaffAccount {
+  id        String   @id @default(cuid())
+  fullName  String
+  email     String   @unique
+  roleKey   String
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CouponRedemption {

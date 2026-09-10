@@ -1,5 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+
+export enum CategoryStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+}
 
 export class CreateCategoryDto {
   @ApiProperty({ example: 'Food' })
@@ -14,6 +19,16 @@ export class CreateCategoryDto {
   @IsOptional()
   @IsString()
   iconUrl?: string;
+
+  @ApiPropertyOptional({ example: 'Restaurants, cafes, and local dining offers.' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ enum: CategoryStatus, example: CategoryStatus.ACTIVE })
+  @IsOptional()
+  @IsEnum(CategoryStatus)
+  status?: CategoryStatus;
 
   @ApiPropertyOptional({ example: 1 })
   @IsOptional()

@@ -17,7 +17,18 @@ export class MerchantsService {
       data: {
         name: dto.name,
         description: dto.description,
+        titleText: dto.titleText,
+        logoUrl: dto.logoUrl,
+        categoryId: dto.categoryId,
         address: dto.address,
+        phone: dto.phone,
+        email: dto.email,
+        websiteUrl: dto.websiteUrl,
+        instagramUrl: dto.instagramUrl,
+        facebookUrl: dto.facebookUrl,
+        tiktokUrl: dto.tiktokUrl,
+        radiusMeters: dto.radiusMeters,
+        status: dto.status,
         latitude: dto.latitude,
         longitude: dto.longitude,
         areaId,
@@ -29,6 +40,15 @@ export class MerchantsService {
   findForArea(user: { role: string; areaId?: string | null }, areaId?: string) {
     const scopedAreaId = user.role === 'ADMIN' ? areaId : user.areaId;
     if (!scopedAreaId) throw new ForbiddenException('Area scope is required');
-    return this.prisma.merchant.findMany({ where: { areaId: scopedAreaId }, orderBy: { name: 'asc' } });
+    return this.prisma.merchant.findMany({ where: { areaId: scopedAreaId }, include: { area: true, category: true }, orderBy: { name: 'asc' } });
+  }
+
+  update(id: string, dto: Partial<CreateMerchantDto>) {
+    return this.prisma.merchant.update({ where: { id }, data: dto });
+  }
+
+  async remove(id: string) {
+    await this.prisma.merchant.delete({ where: { id } });
+    return { id, deleted: true };
   }
 }

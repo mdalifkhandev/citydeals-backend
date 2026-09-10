@@ -14,12 +14,40 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
   ) {}
 
-  enqueueProximityNotification(dto: SendNotificationDto) {
+  enqueueProximityNotification(dto: SendNotificationDto & { userId: string; merchantId: string }) {
     return this.queue.add('send-proximity', dto, {
       attempts: 3,
       backoff: { type: 'exponential', delay: 5000 },
       removeOnComplete: true,
     });
+  }
+
+  async send(dto: SendNotificationDto) {
+    const users = await this.resolveRecipients(dto);
+    const notifications = await this.prisma.notification.createMany({
+      data: users.map((user) => ({
+        userId: user.id,
+        title: dto.title,
+        body: dto.body,
+        data: {
+          sendTo: dto.sendTo ?? 'ALL',
+          areaId: dto.areaId,
+          scheduledAt: dto.scheduledAt,
+          repeat: dto.repeat ?? 'NONE',
+        },
+      })),
+    });
+    return { recipients: users.length, created: notifications.count };
+  }
+
+  private resolveRecipients(dto: SendNotificationDto) {
+    if (dto.sendTo === 'USER' && dto.userId) {
+      return this.prisma.user.findMany({ where: { id: dto.userId, notificationsPaused: false }, select: { id: true } });
+    }
+    if (dto.sendTo === 'AREA' && dto.areaId) {
+      return this.prisma.user.findMany({ where: { areaId: dto.areaId, notificationsPaused: false }, select: { id: true } });
+    }
+    return this.prisma.user.findMany({ where: { notificationsPaused: false }, select: { id: true } });
   }
 
   async findMine(userId: string, query: ListNotificationsDto) {

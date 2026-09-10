@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
@@ -23,5 +23,17 @@ export class MerchantsController {
   @Get()
   findForArea(@GetUser() user: { role: string; areaId?: string | null }, @Query('areaId') areaId?: string) {
     return this.merchantsService.findForArea(user, areaId);
+  }
+
+  @Roles('ADMIN', 'ADVERTISER')
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: Partial<CreateMerchantDto>) {
+    return this.merchantsService.update(id, dto);
+  }
+
+  @Roles('ADMIN')
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.merchantsService.remove(id);
   }
 }

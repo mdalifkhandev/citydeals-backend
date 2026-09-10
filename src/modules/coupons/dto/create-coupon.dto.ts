@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsDateString, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+
+export enum CouponRedemptionFrequency {
+  ONE_TIME = 'ONE_TIME',
+  DAILY = 'DAILY',
+  WEEKLY = 'WEEKLY',
+  UNLIMITED = 'UNLIMITED',
+}
 
 export class CreateCouponDto {
   @ApiProperty({
@@ -24,6 +31,16 @@ export class CreateCouponDto {
   @IsString()
   imageUrl?: string;
 
+  @ApiPropertyOptional({ example: 'BOGO2026' })
+  @IsOptional()
+  @IsString()
+  couponCode?: string;
+
+  @ApiPropertyOptional({ example: 'https://merchant.example.com/deal' })
+  @IsOptional()
+  @IsString()
+  couponLink?: string;
+
   @ApiProperty({
     example: 'replace-with-created-merchant-id',
     description: 'Create a merchant first, then paste its id here.',
@@ -46,6 +63,26 @@ export class CreateCouponDto {
   @IsOptional()
   @IsBoolean()
   isWhitelisted?: boolean;
+
+  @ApiPropertyOptional({ example: 50 })
+  @IsOptional()
+  @IsNumber()
+  redemptionLimit?: number;
+
+  @ApiPropertyOptional({ enum: CouponRedemptionFrequency, example: CouponRedemptionFrequency.ONE_TIME })
+  @IsOptional()
+  @IsEnum(CouponRedemptionFrequency)
+  redemptionFrequency?: CouponRedemptionFrequency;
+
+  @ApiPropertyOptional({ example: 'Available this weekend only.' })
+  @IsOptional()
+  @IsString()
+  discussion?: string;
+
+  @ApiPropertyOptional({ example: 'Cannot be combined with other offers.' })
+  @IsOptional()
+  @IsString()
+  terms?: string;
 
   @ApiPropertyOptional({
     example: '2026-09-10T00:00:00.000Z',

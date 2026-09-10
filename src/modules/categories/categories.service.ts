@@ -27,4 +27,13 @@ export class CategoriesService {
       orderBy: [{ isWhitelisted: 'desc' }, { createdAt: 'desc' }],
     });
   }
+
+  update(id: string, dto: Partial<CreateCategoryDto>) {
+    return this.prisma.category.update({ where: { id }, data: dto });
+  }
+
+  async remove(id: string) {
+    await this.prisma.category.delete({ where: { id } });
+    return { id, deleted: true };
+  }
 }

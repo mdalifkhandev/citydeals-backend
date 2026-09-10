@@ -4,6 +4,8 @@ allowBuilds:
   '@prisma/engines': true
   '@scarf/scarf': true
   bcrypt: true
+  esbuild: true
   msgpackr-extract: true
   prisma: true
   protobufjs: true
+  workerd: true

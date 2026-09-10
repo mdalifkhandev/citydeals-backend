@@ -19,6 +19,12 @@ export class CouponsService {
         title: dto.title,
         description: dto.description,
         imageUrl: dto.imageUrl,
+        couponCode: dto.couponCode,
+        couponLink: dto.couponLink,
+        redemptionLimit: dto.redemptionLimit,
+        redemptionFrequency: dto.redemptionFrequency,
+        discussion: dto.discussion,
+        terms: dto.terms,
         merchantId: dto.merchantId,
         areaId: merchant.areaId,
         categoryId: dto.categoryId,
@@ -39,7 +45,7 @@ export class CouponsService {
     if (!areaId) throw new ForbiddenException('Area scope is required');
     return this.prisma.coupon.findMany({
       where: { areaId, merchantId: filter.merchantId, status: 'ACTIVE' },
-      include: { merchant: true, area: true },
+      include: { merchant: true, area: true, category: true },
       orderBy: [{ isWhitelisted: 'desc' }, { createdAt: 'desc' }],
     });
   }
@@ -47,7 +53,7 @@ export class CouponsService {
   async findPublicByShareSlug(shareSlug: string) {
     const coupon = await this.prisma.coupon.findUnique({
       where: { shareSlug },
-      include: { merchant: true, area: true },
+      include: { merchant: true, area: true, category: true },
     });
     if (!coupon || coupon.status !== 'ACTIVE') {
       throw new NotFoundException('Coupon not found');
@@ -76,5 +82,21 @@ export class CouponsService {
       include: { coupon: { include: { merchant: true, area: true, category: true } } },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  update(id: string, dto: Partial<CreateCouponDto>) {
+    return this.prisma.coupon.update({
+      where: { id },
+      data: {
+        ...dto,
+        startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
+      },
+    });
+  }
+
+  async remove(id: string) {
+    await this.prisma.coupon.delete({ where: { id } });
+    return { id, deleted: true };
   }
 }
