@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
+import { ForbiddenException } from '@nestjs/common';
 import bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service.js';
 import { AreasService } from '../areas/areas.service.js';
@@ -97,7 +98,28 @@ export class AuthService {
     return { loggedOut: true };
   }
 
-  private async issueTokens(user: { id: string; email: string; role: string; areaId: string | null }) {
+
+  async refreshTokens(refreshToken: string) {
+    if (!refreshToken) throw new ForbiddenException('No refresh token provided');
+    try {
+      const payload = await this.jwtService.verifyAsync(refreshToken, {
+        secret: this.configService.get<string>('auth.refreshSecret') ?? 'dev-only-refresh-change-me'
+      });
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      if (!user || !user.refreshTokenHash) {
+        throw new ForbiddenException('Access Denied');
+      }
+      const refreshTokenMatches = await bcrypt.compare(refreshToken, user.refreshTokenHash);
+      if (!refreshTokenMatches) {
+        throw new ForbiddenException('Access Denied');
+      }
+      return this.issueTokens(user);
+    } catch (e) {
+      throw new ForbiddenException('Invalid or expired refresh token');
+    }
+  }
+
+  private async issueTokens(user: any) {
     const payload = { sub: user.id, email: user.email, role: user.role, areaId: user.areaId };
     const accessToken = await this.jwtService.signAsync(payload);
     const refreshOptions: JwtSignOptions = {
@@ -109,6 +131,13 @@ export class AuthService {
       where: { id: user.id },
       data: { refreshTokenHash: await bcrypt.hash(refreshToken, 12) },
     });
-    return { accessToken, refreshToken };
+    
+    // Don't leak password hash
+    const { passwordHash, refreshTokenHash, ...userWithoutSecrets } = user;
+    
+    return { 
+      user: userWithoutSecrets,
+      tokens: { accessToken, refreshToken } 
+    };
   }
 }

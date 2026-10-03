@@ -40,6 +40,14 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @Post('logout')
+  @Post('refresh')
+  refreshTokens(@Body() body: { refreshToken: string }) {
+    return this.authService.refreshTokens(body.refreshToken);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @Post('logout')
   logout(@GetUser() user: { id: string }) {
     return this.authService.logout(user.id);
   }
