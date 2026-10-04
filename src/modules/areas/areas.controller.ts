@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
@@ -23,6 +23,15 @@ export class AreasController {
   @Get()
   findAll() {
     return this.areasService.findAll();
+  }
+
+  @Get('resolve')
+  resolve(
+    @Query('latitude') latitude?: string,
+    @Query('longitude') longitude?: string,
+  ) {
+    if (!latitude || !longitude) return null;
+    return this.areasService.resolveArea(Number(latitude), Number(longitude));
   }
 
   @Get(':slug')

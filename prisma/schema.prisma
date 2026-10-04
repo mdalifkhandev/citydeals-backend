@@ -38,7 +38,7 @@ enum RedemptionFrequency {
 }
 
 model User {
-  id                 String   @id @default(cuid())
+  id                 String   @id @default(uuid())
   fullName           String?
   email              String   @unique
   phoneNumber        String?
@@ -71,7 +71,7 @@ model User {
 }
 
 model Area {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid())
   name        String
   slug        String   @unique
   city        String
@@ -91,7 +91,7 @@ model Area {
 }
 
 model Category {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   name      String
   slug      String   @unique
   iconUrl   String?
@@ -108,7 +108,7 @@ model Category {
 }
 
 model Merchant {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid())
   name        String
   description String?
   titleText   String?
@@ -141,7 +141,7 @@ model Merchant {
 }
 
 model Coupon {
-  id          String       @id @default(cuid())
+  id          String       @id @default(uuid())
   title       String
   description String
   imageUrl    String?
@@ -174,7 +174,7 @@ model Coupon {
 }
 
 model StaffRole {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid())
   name        String   @unique
   key         String   @unique
   permissions Json     @default("{}")
@@ -183,7 +183,7 @@ model StaffRole {
 }
 
 model StaffAccount {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   fullName  String
   email     String   @unique
   roleKey   String
@@ -193,7 +193,7 @@ model StaffAccount {
 }
 
 model CouponRedemption {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   userId    String
   couponId  String
   createdAt DateTime @default(now())
@@ -206,7 +206,7 @@ model CouponRedemption {
 }
 
 model SupportTicket {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   userId    String?
   fullName  String
   email     String
@@ -222,7 +222,7 @@ model SupportTicket {
 }
 
 model LegalDocument {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   type      String   @unique
   title     String
   content   String
@@ -231,7 +231,7 @@ model LegalDocument {
 }
 
 model SavedCoupon {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid())
   userId    String
   couponId  String
   createdAt DateTime @default(now())
@@ -244,7 +244,7 @@ model SavedCoupon {
 }
 
 model Notification {
-  id        String    @id @default(cuid())
+  id        String    @id @default(uuid())
   userId    String
   title     String
   body      String
@@ -258,7 +258,7 @@ model Notification {
 }
 
 model NotificationCooldown {
-  id         String   @id @default(cuid())
+  id         String   @id @default(uuid())
   userId     String
   merchantId String
   lastSentAt DateTime

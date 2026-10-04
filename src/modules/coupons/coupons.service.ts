@@ -39,14 +39,67 @@ export class CouponsService {
   }
 
   async find(user: { role?: string; areaId?: string | null } | null, filter: FilterCouponDto) {
-    const area = filter.areaSlug
-      ? await this.prisma.area.findUnique({ where: { slug: filter.areaSlug } })
-      : null;
-    const areaId = user?.role === 'ADMIN' ? area?.id ?? user.areaId : area?.id ?? user?.areaId;
-    if (!areaId) throw new ForbiddenException('Area scope is required');
+    let areaId = filter.areaId;
+    const isAllArea =
+      filter.areaSlug?.toLowerCase() === 'all' ||
+      filter.areaId?.toLowerCase() === 'all';
+
+    if (!isAllArea) {
+      if (!areaId && filter.areaSlug) {
+        const area = await this.prisma.area.findUnique({ where: { slug: filter.areaSlug } });
+        areaId = area?.id;
+      }
+      if (!areaId && user?.areaId) {
+        areaId = user.areaId;
+      }
+    } else {
+      areaId = undefined;
+    }
+
+    let categoryId = filter.categoryId;
+    if (!categoryId && filter.categorySlug && filter.categorySlug.toLowerCase() !== 'all') {
+      const category = await this.prisma.category.findUnique({
+        where: { slug: filter.categorySlug.toLowerCase() },
+      });
+      categoryId = category?.id;
+    }
+
+    const whereClause: any = {
+      status: 'ACTIVE',
+    };
+
+    if (areaId) {
+      whereClause.areaId = areaId;
+    }
+
+    if (filter.merchantId) {
+      whereClause.merchantId = filter.merchantId;
+    }
+
+    if (categoryId && categoryId.toLowerCase() !== 'all') {
+      whereClause.categoryId = categoryId;
+    }
+
+    if (filter.search && filter.search.trim().length > 0) {
+      const query = filter.search.trim();
+      whereClause.OR = [
+        { title: { contains: query, mode: 'insensitive' } },
+        { description: { contains: query, mode: 'insensitive' } },
+        { couponCode: { contains: query, mode: 'insensitive' } },
+        { merchant: { name: { contains: query, mode: 'insensitive' } } },
+        { category: { name: { contains: query, mode: 'insensitive' } } },
+      ];
+    }
+
     return this.prisma.coupon.findMany({
-      where: { areaId, merchantId: filter.merchantId, status: 'ACTIVE' },
-      include: { merchant: true, area: true, category: true },
+      where: whereClause,
+      include: {
+        merchant: {
+          include: { category: true },
+        },
+        area: true,
+        category: true,
+      },
       orderBy: [{ isWhitelisted: 'desc' }, { createdAt: 'desc' }],
     });
   }

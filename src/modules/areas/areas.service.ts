@@ -59,7 +59,9 @@ export class AreasService {
 
   async resolveArea(latitude: number, longitude: number) {
     const areas = await this.prisma.area.findMany();
-    return areas
+    if (areas.length === 0) return null;
+
+    const sorted = areas
       .map((area) => ({
         ...area,
         distanceMeters: haversineDistanceMeters(
@@ -67,7 +69,8 @@ export class AreasService {
           { latitude: Number(area.latitude), longitude: Number(area.longitude) },
         ),
       }))
-      .filter((area) => area.distanceMeters <= area.radiusMeters)
-      .sort((a, b) => a.distanceMeters - b.distanceMeters)[0] ?? null;
+      .sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+    return sorted.find((area) => area.distanceMeters <= area.radiusMeters) ?? sorted[0] ?? null;
   }
 }

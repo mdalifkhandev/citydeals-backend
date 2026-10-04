@@ -53,16 +53,77 @@ export class AuthService {
         latitude: dto.latitude,
         longitude: dto.longitude,
       },
+      include: {
+        area: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            city: true,
+            state: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+      },
     });
     return this.issueTokens(user);
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      include: {
+        area: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            city: true,
+            state: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+      },
+    });
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
     return this.issueTokens(user);
+  }
+
+  async getMe(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        profilePictureUrl: true,
+        role: true,
+        status: true,
+        areaId: true,
+        latitude: true,
+        longitude: true,
+        area: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            city: true,
+            state: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
   }
 
   async syncLocation(userId: string, dto: SyncLocationDto) {
@@ -75,7 +136,23 @@ export class AuthService {
         fcmToken: dto.fcmToken,
         areaId: area?.id,
       },
-      select: { id: true, areaId: true, latitude: true, longitude: true },
+      select: {
+        id: true,
+        areaId: true,
+        latitude: true,
+        longitude: true,
+        area: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            city: true,
+            state: true,
+            latitude: true,
+            longitude: true,
+          },
+        },
+      },
     });
   }
 
@@ -192,7 +269,22 @@ export class AuthService {
       const payload = await this.jwtService.verifyAsync(refreshToken, {
         secret: this.configService.get<string>('auth.refreshSecret') ?? 'dev-only-refresh-change-me'
       });
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        include: {
+          area: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              city: true,
+              state: true,
+              latitude: true,
+              longitude: true,
+            },
+          },
+        },
+      });
       if (!user || !user.refreshTokenHash) {
         throw new ForbiddenException('Access Denied');
       }

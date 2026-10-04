@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { CouponsService } from './coupons.service.js';
 import { CreateCouponDto } from './dto/create-coupon.dto.js';
@@ -22,10 +23,10 @@ export class CouponsController {
     return this.couponsService.create(user, dto);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiBearerAuth('access-token')
   @Get()
-  find(@GetUser() user: { role: string; areaId?: string | null }, @Query() filter: FilterCouponDto) {
+  find(@GetUser() user: { role?: string; areaId?: string | null } | null, @Query() filter: FilterCouponDto) {
     return this.couponsService.find(user, filter);
   }
 

@@ -1,10 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import QRCode from 'qrcode';
+import { CloudinaryService } from '../upload/cloudinary.service.js';
 
 @Injectable()
 export class QrService {
-  constructor(private readonly configService: ConfigService) {}
+  private readonly logger = new Logger(QrService.name);
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   async generateAreaQrCode(slug: string): Promise<string> {
     const baseUrl = this.configService.get<string>('app.publicBaseUrl');
@@ -18,9 +24,15 @@ export class QrService {
   }
 
   private async uploadQrAsset(slug: string, dataUrl: string): Promise<string> {
-    if (process.env.S3_PUBLIC_BASE_URL) {
-      return `${process.env.S3_PUBLIC_BASE_URL}/qr/areas/${slug}.png`;
+    try {
+      const res = await this.cloudinaryService.uploadBase64(dataUrl, {
+        folder: 'qr/areas',
+        publicId: `qr_${slug}`,
+      });
+      return res.secureUrl;
+    } catch (error) {
+      this.logger.warn(`Failed to upload QR to Cloudinary, falling back to data URL: ${error}`);
+      return dataUrl;
     }
-    return dataUrl;
   }
 }

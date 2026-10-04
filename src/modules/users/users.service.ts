@@ -78,6 +78,22 @@ export class UsersService {
     });
   }
 
+  async updateAvatar(userId: string, avatarUrl: string) {
+    await this.ensureUser(userId);
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { profilePictureUrl: avatarUrl },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phoneNumber: true,
+        profilePictureUrl: true,
+        dateOfBirth: true,
+      },
+    });
+  }
+
   async updateLanguage(userId: string, dto: UpdateLanguageDto) {
     await this.ensureUser(userId);
     return this.prisma.user.update({
