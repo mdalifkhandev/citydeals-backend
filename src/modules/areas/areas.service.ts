@@ -71,6 +71,6 @@ export class AreasService {
       }))
       .sort((a, b) => a.distanceMeters - b.distanceMeters);
 
-    return sorted.find((area) => area.distanceMeters <= area.radiusMeters) ?? sorted[0] ?? null;
+    return sorted.find((area) => area.distanceMeters <= area.radiusMeters) ?? null;
   }
 }
