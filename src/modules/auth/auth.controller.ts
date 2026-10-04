@@ -7,6 +7,9 @@ import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { SyncLocationDto } from './dto/sync-location.dto.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { VerifyOtpDto } from './dto/verify-otp.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -23,6 +26,21 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('verify-otp')
+  verifyOtp(@Body() dto: VerifyOtpDto) {
+    return this.authService.verifyOtp(dto);
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
+
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
   @Post('location/sync')
@@ -37,9 +55,6 @@ export class AuthController {
     return this.authService.changePassword(user.id, dto);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('access-token')
-  @Post('logout')
   @Post('refresh')
   refreshTokens(@Body() body: { refreshToken: string }) {
     return this.authService.refreshTokens(body.refreshToken);
@@ -52,3 +67,4 @@ export class AuthController {
     return this.authService.logout(user.id);
   }
 }
+

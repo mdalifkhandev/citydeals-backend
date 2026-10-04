@@ -6,10 +6,12 @@ import { AppService } from './app.service.js';
 import appConfig from './config/app.config.js';
 import authConfig from './config/auth.config.js';
 import redisConfig from './config/redis.config.js';
+import mailConfig from './config/mail.config.js';
 import { PrismaModule } from './database/prisma.module.js';
 import { AreasModule } from './modules/areas/areas.module.js';
 import { AdminModule } from './modules/admin/admin.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { MailModule } from './modules/mail/mail.module.js';
 import { CategoriesModule } from './modules/categories/categories.module.js';
 import { CouponsModule } from './modules/coupons/coupons.module.js';
 import { LocationModule } from './modules/location/location.module.js';
@@ -26,7 +28,7 @@ import { UsersModule } from './modules/users/users.module.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, authConfig, redisConfig],
+      load: [appConfig, authConfig, redisConfig, mailConfig],
     }),
     BullModule.forRootAsync({
       inject: [ConfigService],
@@ -40,6 +42,7 @@ import { UsersModule } from './modules/users/users.module.js';
     PrismaModule,
     AdminModule,
     AuthModule,
+    MailModule,
     AreasModule,
     MerchantsModule,
     CouponsModule,

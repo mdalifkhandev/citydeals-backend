@@ -53,6 +53,8 @@ model User {
   acceptedTerms      Boolean  @default(false)
   onboardingCompleted Boolean @default(false)
   refreshTokenHash   String?
+  resetPasswordOtp   String?
+  resetPasswordExpiresAt DateTime?
   latitude           Decimal? @db.Decimal(9, 6)
   longitude          Decimal? @db.Decimal(9, 6)
   fcmToken           String?

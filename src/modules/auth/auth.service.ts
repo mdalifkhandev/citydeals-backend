@@ -1,14 +1,17 @@
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
-import { ForbiddenException } from '@nestjs/common';
 import bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service.js';
 import { AreasService } from '../areas/areas.service.js';
+import { MailService } from '../mail/mail.service.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { SyncLocationDto } from './dto/sync-location.dto.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { VerifyOtpDto } from './dto/verify-otp.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
 
 @Injectable()
 export class AuthService {
@@ -17,6 +20,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly areasService: AreasService,
+    private readonly mailService: MailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -93,6 +97,89 @@ export class AuthService {
     return { passwordChanged: true };
   }
 
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (!user) {
+      throw new NotFoundException('No account found with this email address');
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetPasswordOtp: otp,
+        resetPasswordExpiresAt: expiresAt,
+      },
+    });
+
+    console.log(`[AUTH] 🔑 Password reset OTP for ${user.email}: ${otp}`);
+
+    await this.mailService.sendPasswordResetOtp(user.email, otp, user.fullName ?? undefined);
+
+    return {
+      success: true,
+      message: 'Verification code sent to your email address.',
+      ...(process.env.NODE_ENV !== 'production' ? { otp } : {}),
+    };
+  }
+
+  async verifyOtp(dto: VerifyOtpDto) {
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (!user || !user.resetPasswordOtp || !user.resetPasswordExpiresAt) {
+      throw new BadRequestException('No pending password reset request found for this email.');
+    }
+
+    if (user.resetPasswordOtp !== dto.otp) {
+      throw new BadRequestException('Invalid verification code. Please check and try again.');
+    }
+
+    if (new Date() > user.resetPasswordExpiresAt) {
+      throw new BadRequestException('Verification code has expired. Please request a new one.');
+    }
+
+    return {
+      success: true,
+      message: 'Verification code is valid.',
+    };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    if (dto.newPassword !== dto.confirmPassword) {
+      throw new BadRequestException('Passwords do not match.');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (!user || !user.resetPasswordOtp || !user.resetPasswordExpiresAt) {
+      throw new BadRequestException('No pending password reset request found for this email.');
+    }
+
+    if (user.resetPasswordOtp !== dto.otp) {
+      throw new BadRequestException('Invalid verification code. Please check and try again.');
+    }
+
+    if (new Date() > user.resetPasswordExpiresAt) {
+      throw new BadRequestException('Verification code has expired. Please request a new one.');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 12);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        resetPasswordOtp: null,
+        resetPasswordExpiresAt: null,
+        refreshTokenHash: null,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Your password has been reset successfully. Please sign in with your new password.',
+    };
+  }
+
   async logout(userId: string) {
     await this.prisma.user.update({ where: { id: userId }, data: { refreshTokenHash: null } });
     return { loggedOut: true };
@@ -114,7 +201,7 @@ export class AuthService {
         throw new ForbiddenException('Access Denied');
       }
       return this.issueTokens(user);
-    } catch (e) {
+    } catch {
       throw new ForbiddenException('Invalid or expired refresh token');
     }
   }
@@ -133,7 +220,7 @@ export class AuthService {
     });
     
     // Don't leak password hash
-    const { passwordHash, refreshTokenHash, ...userWithoutSecrets } = user;
+    const { passwordHash: _passwordHash, refreshTokenHash: _refreshTokenHash, ...userWithoutSecrets } = user;
     
     return { 
       user: userWithoutSecrets,
