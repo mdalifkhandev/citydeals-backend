@@ -94,8 +94,9 @@ async function main() {
   });
 
   await prisma.user.updateMany({
-    where: { email: 'sparktech301@gmail.com' },
+    where: { email: { in: ['sparktech301@gmail.com', 'aa@lnovic.com'] } },
     data: {
+      role: 'ADMIN',
       areaId: areaMadrid.id,
       profilePictureUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80',
     },

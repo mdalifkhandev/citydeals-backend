@@ -56,6 +56,20 @@ export class CouponsController {
     return this.couponsService.unsaveCoupon(user.id, id);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @Post(':id/redeem')
+  redeemCoupon(@GetUser() user: { id: string }, @Param('id') id: string) {
+    return this.couponsService.redeemCoupon(user.id, id);
+  }
+
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth('access-token')
+  @Get(':id')
+  findById(@Param('id') id: string, @GetUser() user?: { id?: string }) {
+    return this.couponsService.findById(id, user?.id);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @ApiBearerAuth('access-token')
   @Roles('ADMIN', 'ADVERTISER')

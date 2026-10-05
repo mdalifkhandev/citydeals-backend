@@ -82,19 +82,21 @@ export class CreateMerchantDto {
   @IsString()
   tiktokUrl?: string;
 
-  @ApiProperty({
-    example: 25.6862,
+  @ApiPropertyOptional({
+    example: 40.4168,
     description: 'Merchant latitude used for proximity notifications.',
   })
+  @IsOptional()
   @IsNumber()
-  latitude!: number;
+  latitude?: number;
 
-  @ApiProperty({
-    example: -80.3131,
+  @ApiPropertyOptional({
+    example: -3.7038,
     description: 'Merchant longitude used for proximity notifications.',
   })
+  @IsOptional()
   @IsNumber()
-  longitude!: number;
+  longitude?: number;
 
   @ApiPropertyOptional({ example: 3000 })
   @IsOptional()

@@ -12,7 +12,14 @@ export class CategoriesService {
   }
 
   findAll() {
-    return this.prisma.category.findMany({ orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] });
+    return this.prisma.category.findMany({
+      include: {
+        _count: {
+          select: { coupons: true, merchants: true },
+        },
+      },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+    });
   }
 
   async findCoupons(categorySlugOrId: string, areaSlug?: string) {
@@ -43,7 +50,11 @@ export class CategoriesService {
   }
 
   async remove(id: string) {
-    await this.prisma.category.delete({ where: { id } });
+    await this.prisma.$transaction([
+      this.prisma.merchant.updateMany({ where: { categoryId: id }, data: { categoryId: null } }),
+      this.prisma.coupon.updateMany({ where: { categoryId: id }, data: { categoryId: null } }),
+      this.prisma.category.delete({ where: { id } }),
+    ]);
     return { id, deleted: true };
   }
 }

@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service.js';
 import { CreateCouponDto } from './dto/create-coupon.dto.js';
@@ -133,12 +133,13 @@ export class CouponsService {
     return { couponId, saved: false };
   }
 
-  findSavedCoupons(userId: string) {
-    return this.prisma.savedCoupon.findMany({
+  async findSavedCoupons(userId: string) {
+    const saved = await this.prisma.savedCoupon.findMany({
       where: { userId },
       include: { coupon: { include: { merchant: true, area: true, category: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    return saved.filter((s) => s.coupon).map((s) => ({ ...s.coupon, isSaved: true }));
   }
 
   update(id: string, dto: UpdateCouponDto = {}) {
@@ -155,6 +156,120 @@ export class CouponsService {
       where: { id },
       data: updateData,
     });
+  }
+
+  async findById(id: string, userId?: string) {
+    const coupon = await this.prisma.coupon.findUnique({
+      where: { id },
+      include: {
+        merchant: {
+          include: { category: true },
+        },
+        area: true,
+        category: true,
+        _count: {
+          select: { redemptions: true, savedBy: true },
+        },
+      },
+    });
+    if (!coupon) {
+      throw new NotFoundException('Coupon not found');
+    }
+
+    let isSaved = false;
+    let isRedeemed = false;
+    if (userId) {
+      const [saved, redeemed] = await Promise.all([
+        this.prisma.savedCoupon.findFirst({ where: { userId, couponId: id } }),
+        this.prisma.couponRedemption.findFirst({ where: { userId, couponId: id } }),
+      ]);
+      isSaved = !!saved;
+      isRedeemed = !!redeemed;
+    }
+
+    return {
+      ...coupon,
+      isSaved,
+      isRedeemed,
+    };
+  }
+
+  async redeemCoupon(userId: string, couponId: string) {
+    const coupon = await this.prisma.coupon.findUnique({
+      where: { id: couponId },
+      include: { merchant: true },
+    });
+    if (!coupon) throw new NotFoundException('Coupon not found');
+    if (coupon.status !== 'ACTIVE') throw new BadRequestException('Coupon is not active');
+
+    // Check expiration if any
+    if (coupon.expiresAt && new Date() > new Date(coupon.expiresAt)) {
+      throw new BadRequestException('This coupon has expired');
+    }
+
+    // Check redemption frequency / limits
+    if (coupon.redemptionFrequency === 'ONE_TIME') {
+      const existing = await this.prisma.couponRedemption.findFirst({
+        where: { userId, couponId },
+      });
+      if (existing) {
+        throw new ConflictException('You have already redeemed this coupon');
+      }
+    } else if (coupon.redemptionFrequency === 'DAILY') {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const existingToday = await this.prisma.couponRedemption.findFirst({
+        where: {
+          userId,
+          couponId,
+          createdAt: { gte: startOfDay },
+        },
+      });
+      if (existingToday) {
+        throw new ConflictException('You can only redeem this coupon once per day');
+      }
+    } else if (coupon.redemptionFrequency === 'WEEKLY') {
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const existingWeek = await this.prisma.couponRedemption.findFirst({
+        where: {
+          userId,
+          couponId,
+          createdAt: { gte: oneWeekAgo },
+        },
+      });
+      if (existingWeek) {
+        throw new ConflictException('You can only redeem this coupon once per week');
+      }
+    }
+
+    // Check total redemption limit if set
+    if (coupon.redemptionLimit) {
+      const totalRedemptions = await this.prisma.couponRedemption.count({
+        where: { couponId },
+      });
+      if (totalRedemptions >= coupon.redemptionLimit) {
+        throw new BadRequestException('This coupon has reached its total redemption limit');
+      }
+    }
+
+    const redemption = await this.prisma.couponRedemption.create({
+      data: { userId, couponId },
+      include: {
+        coupon: {
+          include: { merchant: true },
+        },
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Coupon redeemed successfully',
+      redemptionId: redemption.id,
+      redeemedAt: redemption.createdAt,
+      couponCode: coupon.couponCode,
+      couponTitle: coupon.title,
+      merchantName: coupon.merchant?.name,
+    };
   }
 
   async remove(id: string) {

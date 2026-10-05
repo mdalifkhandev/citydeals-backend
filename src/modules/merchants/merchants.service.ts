@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
 import { CreateMerchantDto } from './dto/create-merchant.dto.js';
 
@@ -7,11 +7,20 @@ export class MerchantsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(user: { id: string; role: string; areaId?: string | null }, dto: CreateMerchantDto) {
-    const areaId = user.role === 'ADMIN' ? dto.areaId : user.areaId;
-    if (!areaId) throw new ForbiddenException('Area is required');
+    let areaId = dto.areaId || user.areaId;
+    if (!areaId) {
+      const defaultArea = await this.prisma.area.findFirst({ orderBy: { createdAt: 'asc' } });
+      areaId = defaultArea?.id;
+    }
+    if (!areaId) throw new BadRequestException('Area is required. Please create an area first.');
 
     const area = await this.prisma.area.findUnique({ where: { id: areaId } });
     if (!area) throw new NotFoundException('Area not found');
+
+    let categoryId = dto.categoryId;
+    if (!categoryId || categoryId === '') {
+      categoryId = undefined;
+    }
 
     return this.prisma.merchant.create({
       data: {
@@ -19,7 +28,7 @@ export class MerchantsService {
         description: dto.description,
         titleText: dto.titleText,
         logoUrl: dto.logoUrl,
-        categoryId: dto.categoryId,
+        categoryId,
         address: dto.address,
         phone: dto.phone,
         email: dto.email,
@@ -27,28 +36,36 @@ export class MerchantsService {
         instagramUrl: dto.instagramUrl,
         facebookUrl: dto.facebookUrl,
         tiktokUrl: dto.tiktokUrl,
-        radiusMeters: dto.radiusMeters,
-        status: dto.status,
-        latitude: dto.latitude,
-        longitude: dto.longitude,
+        radiusMeters: dto.radiusMeters ?? 3000,
+        status: dto.status ?? 'ACTIVE',
+        latitude: dto.latitude ?? Number(area.latitude),
+        longitude: dto.longitude ?? Number(area.longitude),
         areaId,
         ownerId: user.role === 'ADVERTISER' ? user.id : undefined,
       },
+      include: { area: true, category: true },
     });
   }
 
   findForArea(user: { role: string; areaId?: string | null }, areaId?: string) {
-    const scopedAreaId = user.role === 'ADMIN' ? areaId : user.areaId;
-    if (!scopedAreaId && user.role !== 'ADMIN') throw new ForbiddenException('Area scope is required');
+    const scopedAreaId = areaId || user.areaId;
     return this.prisma.merchant.findMany({
-      where: scopedAreaId ? { areaId: scopedAreaId } : {},
+      where: user.role === 'ADMIN' ? (areaId ? { areaId } : {}) : (scopedAreaId ? { areaId: scopedAreaId } : {}),
       include: { area: true, category: true },
       orderBy: { name: 'asc' },
     });
   }
 
   update(id: string, dto: Partial<CreateMerchantDto>) {
-    return this.prisma.merchant.update({ where: { id }, data: dto });
+    const data: any = { ...dto };
+    if (data.categoryId === '') {
+      data.categoryId = null;
+    }
+    return this.prisma.merchant.update({
+      where: { id },
+      data,
+      include: { area: true, category: true },
+    });
   }
 
   async remove(id: string) {
