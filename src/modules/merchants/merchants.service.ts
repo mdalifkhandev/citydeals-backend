@@ -39,8 +39,12 @@ export class MerchantsService {
 
   findForArea(user: { role: string; areaId?: string | null }, areaId?: string) {
     const scopedAreaId = user.role === 'ADMIN' ? areaId : user.areaId;
-    if (!scopedAreaId) throw new ForbiddenException('Area scope is required');
-    return this.prisma.merchant.findMany({ where: { areaId: scopedAreaId }, include: { area: true, category: true }, orderBy: { name: 'asc' } });
+    if (!scopedAreaId && user.role !== 'ADMIN') throw new ForbiddenException('Area scope is required');
+    return this.prisma.merchant.findMany({
+      where: scopedAreaId ? { areaId: scopedAreaId } : {},
+      include: { area: true, category: true },
+      orderBy: { name: 'asc' },
+    });
   }
 
   update(id: string, dto: Partial<CreateMerchantDto>) {

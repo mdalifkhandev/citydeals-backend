@@ -1,5 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CouponStatus } from '@prisma/client';
 import { IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+
+export { CouponStatus };
 
 export enum CouponRedemptionFrequency {
   ONE_TIME = 'ONE_TIME',
@@ -9,6 +12,10 @@ export enum CouponRedemptionFrequency {
 }
 
 export class CreateCouponDto {
+  @ApiPropertyOptional({ enum: CouponStatus, example: CouponStatus.ACTIVE })
+  @IsOptional()
+  @IsEnum(CouponStatus)
+  status?: CouponStatus;
   @ApiProperty({
     example: 'Buy 1 Coffee, Get 1 Free',
     description: 'Coupon title shown in app and share preview.',

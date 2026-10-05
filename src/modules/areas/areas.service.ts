@@ -13,13 +13,33 @@ export class AreasService {
   ) {}
 
   async create(dto: CreateAreaDto) {
-    const area = await this.prisma.area.create({ data: dto });
+    const area = await this.prisma.area.create({
+      data: {
+        name: dto.name,
+        slug: dto.slug,
+        city: dto.city,
+        state: dto.state,
+        latitude: dto.latitude ?? 40.416775,
+        longitude: dto.longitude ?? -3.703790,
+        radiusMeters: dto.radiusMeters ?? 15000,
+      },
+    });
     const qrCodeUrl = await this.qrService.generateAreaQrCode(area.slug);
     return this.prisma.area.update({ where: { id: area.id }, data: { qrCodeUrl } });
   }
 
   findAll() {
-    return this.prisma.area.findMany({ orderBy: { name: 'asc' } });
+    return this.prisma.area.findMany({
+      include: {
+        _count: {
+          select: {
+            merchants: true,
+            coupons: true,
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
   }
 
   async findBySlug(slug: string) {
@@ -55,6 +75,11 @@ export class AreasService {
       ? await this.qrService.generateAreaQrCode(dto.slug)
       : undefined;
     return this.prisma.area.update({ where: { id }, data: { ...dto, qrCodeUrl } });
+  }
+
+  async remove(id: string) {
+    await this.prisma.area.delete({ where: { id } });
+    return { id, deleted: true };
   }
 
   async resolveArea(latitude: number, longitude: number) {

@@ -31,7 +31,7 @@ export class CouponsService {
         categoryId: dto.categoryId,
         isWhitelisted: dto.isWhitelisted ?? false,
         shareSlug: randomUUID(),
-        status: 'ACTIVE',
+        status: dto.status ?? 'ACTIVE',
         startsAt: dto.startsAt ? new Date(dto.startsAt) : undefined,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
       },
@@ -49,9 +49,6 @@ export class CouponsService {
         const area = await this.prisma.area.findUnique({ where: { slug: filter.areaSlug } });
         areaId = area?.id;
       }
-      if (!areaId && user?.areaId) {
-        areaId = user.areaId;
-      }
     } else {
       areaId = undefined;
     }
@@ -64,9 +61,15 @@ export class CouponsService {
       categoryId = category?.id;
     }
 
-    const whereClause: any = {
-      status: 'ACTIVE',
-    };
+    const whereClause: any = {};
+
+    if (user?.role === 'ADMIN' || user?.role === 'STAFF') {
+      if (filter.status) {
+        whereClause.status = filter.status;
+      }
+    } else {
+      whereClause.status = filter.status ?? 'ACTIVE';
+    }
 
     if (areaId) {
       whereClause.areaId = areaId;
@@ -139,14 +142,18 @@ export class CouponsService {
   }
 
   update(id: string, dto: UpdateCouponDto = {}) {
-    const { startsAt, expiresAt, ...data } = dto;
+    const { startsAt, expiresAt, merchantId, categoryId, ...data } = dto;
+    const updateData: any = {
+      ...data,
+      startsAt: startsAt ? new Date(startsAt) : undefined,
+      expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+    };
+    if (merchantId) updateData.merchantId = merchantId;
+    if (categoryId !== undefined) updateData.categoryId = categoryId;
+
     return this.prisma.coupon.update({
       where: { id },
-      data: {
-        ...data,
-        startsAt: startsAt ? new Date(startsAt) : undefined,
-        expiresAt: expiresAt ? new Date(expiresAt) : undefined,
-      },
+      data: updateData,
     });
   }
 

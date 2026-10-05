@@ -30,19 +30,21 @@ export class CreateAreaDto {
   @IsString()
   state!: string;
 
-  @ApiProperty({
-    example: 25.685,
+  @ApiPropertyOptional({
+    example: 40.416775,
     description: 'Center latitude for area assignment.',
   })
+  @IsOptional()
   @IsNumber()
-  latitude!: number;
+  latitude?: number;
 
-  @ApiProperty({
-    example: -80.312,
+  @ApiPropertyOptional({
+    example: -3.703790,
     description: 'Center longitude for area assignment.',
   })
+  @IsOptional()
   @IsNumber()
-  longitude!: number;
+  longitude?: number;
 
   @ApiPropertyOptional({
     example: 10000,

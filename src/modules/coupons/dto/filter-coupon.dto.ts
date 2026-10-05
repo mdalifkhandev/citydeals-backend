@@ -1,7 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { CouponStatus } from './create-coupon.dto.js';
 
 export class FilterCouponDto {
+  @ApiPropertyOptional({
+    enum: CouponStatus,
+    description: 'Filter coupons by status (e.g. ACTIVE, DRAFT, EXPIRED).',
+  })
+  @IsOptional()
+  @IsEnum(CouponStatus)
+  status?: CouponStatus;
   @ApiPropertyOptional({
     example: 'madrid-centro',
     description: 'Area slug for scoped coupon listing, e.g. /coupons?areaSlug=madrid-centro.',
