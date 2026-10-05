@@ -38,7 +38,7 @@ export class CouponsService {
     });
   }
 
-  async find(user: { role?: string; areaId?: string | null } | null, filter: FilterCouponDto) {
+  async find(user: { id?: string; role?: string; areaId?: string | null } | null, filter: FilterCouponDto) {
     let areaId = filter.areaId;
     const isAllArea =
       filter.areaSlug?.toLowerCase() === 'all' ||
@@ -94,7 +94,7 @@ export class CouponsService {
       ];
     }
 
-    return this.prisma.coupon.findMany({
+    const coupons = await this.prisma.coupon.findMany({
       where: whereClause,
       include: {
         merchant: {
@@ -105,6 +105,23 @@ export class CouponsService {
       },
       orderBy: [{ isWhitelisted: 'desc' }, { createdAt: 'desc' }],
     });
+
+    if (user?.id) {
+      const savedCoupons = await this.prisma.savedCoupon.findMany({
+        where: { userId: user.id },
+        select: { couponId: true },
+      });
+      const savedIds = new Set(savedCoupons.map((s) => s.couponId));
+      return coupons.map((c) => ({
+        ...c,
+        isSaved: savedIds.has(c.id),
+      }));
+    }
+
+    return coupons.map((c) => ({
+      ...c,
+      isSaved: false,
+    }));
   }
 
   async findPublicByShareSlug(shareSlug: string) {
@@ -121,11 +138,12 @@ export class CouponsService {
   async saveCoupon(userId: string, couponId: string) {
     const coupon = await this.prisma.coupon.findUnique({ where: { id: couponId } });
     if (!coupon) throw new NotFoundException('Coupon not found');
-    try {
-      return await this.prisma.savedCoupon.create({ data: { userId, couponId } });
-    } catch {
-      throw new ConflictException('Coupon is already saved');
-    }
+    const saved = await this.prisma.savedCoupon.upsert({
+      where: { userId_couponId: { userId, couponId } },
+      update: {},
+      create: { userId, couponId },
+    });
+    return { ...saved, saved: true };
   }
 
   async unsaveCoupon(userId: string, couponId: string) {
