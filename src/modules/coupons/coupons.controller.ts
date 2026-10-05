@@ -44,6 +44,13 @@ export class CouponsController {
 
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('access-token')
+  @Get('redeemed')
+  findRedeemedCoupons(@GetUser() user: { id: string }) {
+    return this.couponsService.findRedeemedCoupons(user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('access-token')
   @Post(':id/save')
   saveCoupon(@GetUser() user: { id: string }, @Param('id') id: string) {
     return this.couponsService.saveCoupon(user.id, id);

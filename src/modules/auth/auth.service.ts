@@ -107,6 +107,13 @@ export class AuthService {
         areaId: true,
         latitude: true,
         longitude: true,
+        _count: {
+          select: {
+            savedCoupons: true,
+            couponRedemptions: true,
+            notifications: { where: { readAt: null } },
+          },
+        },
         area: {
           select: {
             id: true,
@@ -123,7 +130,15 @@ export class AuthService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    return user;
+    return {
+      ...user,
+      stats: {
+        savedCoupons: user._count.savedCoupons,
+        couponRedeemed: user._count.couponRedemptions,
+        unreadNotifications: user._count.notifications,
+      },
+      _count: undefined,
+    };
   }
 
   async syncLocation(userId: string, dto: SyncLocationDto) {

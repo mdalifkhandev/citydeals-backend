@@ -160,6 +160,29 @@ export class CouponsService {
     return saved.filter((s) => s.coupon).map((s) => ({ ...s.coupon, isSaved: true }));
   }
 
+  async findRedeemedCoupons(userId: string) {
+    const redemptions = await this.prisma.couponRedemption.findMany({
+      where: { userId },
+      include: {
+        coupon: {
+          include: {
+            merchant: { include: { category: true } },
+            area: true,
+            category: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return redemptions
+      .filter((r) => r.coupon)
+      .map((r) => ({
+        ...r.coupon,
+        isRedeemed: true,
+        redeemedAt: r.createdAt,
+      }));
+  }
+
   update(id: string, dto: UpdateCouponDto = {}) {
     const { startsAt, expiresAt, merchantId, categoryId, ...data } = dto;
     const updateData: any = {
