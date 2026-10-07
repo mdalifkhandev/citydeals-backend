@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateSupportTicketDto {
   @ApiProperty({ example: 'Liam Carter' })
@@ -10,8 +10,14 @@ export class CreateSupportTicketDto {
   @IsEmail()
   email!: string;
 
-  @ApiProperty({ example: 'My app is not working...', maxLength: 500 })
+  @ApiPropertyOptional({ example: 'Coupon redemption issue' })
+  @IsOptional()
   @IsString()
-  @MaxLength(500)
+  subject?: string;
+
+  @ApiProperty({ example: 'My app is not working...', maxLength: 1000 })
+  @IsString()
+  @MaxLength(1000)
   message!: string;
 }
+
