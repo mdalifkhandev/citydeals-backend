@@ -1,6 +1,11 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
+import { RolesGuard } from '../../common/guards/roles.guard.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
 import { LegalService } from './legal.service.js';
+import { UpsertLegalDto } from './dto/upsert-legal.dto.js';
 
 @ApiTags('Legal')
 @Controller('legal')
@@ -8,7 +13,29 @@ export class LegalController {
   constructor(private readonly legalService: LegalService) {}
 
   @Get('terms')
+  @ApiOperation({ summary: 'Get active Terms of Use document for mobile app' })
   getTerms() {
     return this.legalService.getTerms();
+  }
+
+  @Get('pages')
+  @ApiOperation({ summary: 'Get all legal documents' })
+  getAllPages() {
+    return this.legalService.getAllPages();
+  }
+
+  @Get('pages/:type')
+  @ApiOperation({ summary: 'Get specific legal document by type or slug' })
+  getPage(@Param('type') type: string) {
+    return this.legalService.getPage(type);
+  }
+
+  @Put('pages/:type')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Update or create legal document content (Admin)' })
+  upsertPage(@Param('type') type: string, @Body() dto: UpsertLegalDto) {
+    return this.legalService.upsertPage(type, dto);
   }
 }
