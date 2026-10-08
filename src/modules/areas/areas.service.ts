@@ -135,4 +135,26 @@ export class AreasService {
 
     return sorted.find((area) => area.distanceMeters <= area.radiusMeters) ?? null;
   }
+
+  async regenerateQr(id: string) {
+    const area = await this.prisma.area.findUnique({ where: { id } });
+    if (!area) throw new NotFoundException('Area not found');
+    const qrCodeUrl = await this.qrService.generateAreaQrCode(area.slug);
+    return this.prisma.area.update({ where: { id }, data: { qrCodeUrl } });
+  }
+
+  async regenerateAllQr() {
+    const areas = await this.prisma.area.findMany();
+    const results = await Promise.all(
+      areas.map(async (area) => {
+        try {
+          const qrCodeUrl = await this.qrService.generateAreaQrCode(area.slug);
+          return await this.prisma.area.update({ where: { id: area.id }, data: { qrCodeUrl } });
+        } catch (e) {
+          return area;
+        }
+      })
+    );
+    return { count: results.length };
+  }
 }

@@ -27,7 +27,7 @@ export class LocationService {
           { latitude: Number(merchant.latitude), longitude: Number(merchant.longitude) },
         ),
       }))
-      .filter((merchant) => merchant.distanceMeters <= 300);
+      .filter((merchant) => merchant.distanceMeters <= merchant.radiusMeters);
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -51,7 +51,7 @@ export class LocationService {
         merchantId: merchant.id,
         latitude: merchant.latitude,
         longitude: merchant.longitude,
-        radiusMeters: 300,
+        radiusMeters: merchant.radiusMeters,
       })),
     };
   }

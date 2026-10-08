@@ -34,6 +34,22 @@ export class AreasController {
     return this.areasService.resolveArea(Number(latitude), Number(longitude));
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('access-token')
+  @Roles('ADMIN')
+  @Post('regenerate-all-qr')
+  regenerateAllQr() {
+    return this.areasService.regenerateAllQr();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiBearerAuth('access-token')
+  @Roles('ADMIN')
+  @Post(':id/regenerate-qr')
+  regenerateQr(@Param('id') id: string) {
+    return this.areasService.regenerateQr(id);
+  }
+
   @Get(':slug')
   findBySlug(@Param('slug') slug: string) {
     return this.areasService.findBySlug(slug);

@@ -39,4 +39,28 @@ export class ShareService {
       },
     };
   }
+
+  async trackCouponShare(
+    shareSlug: string,
+    body: { channel?: string; eventType?: 'SHARE' | 'OPEN' },
+  ) {
+    const coupon = await this.prisma.coupon.findUnique({
+      where: { shareSlug },
+      select: { id: true },
+    });
+    if (!coupon) throw new NotFoundException('Coupon not found');
+
+    const channel = (body.channel || 'SYSTEM').trim().toUpperCase();
+    const eventType = body.eventType === 'OPEN' ? 'OPEN' : 'SHARE';
+
+    await this.prisma.couponShareEvent.create({
+      data: {
+        couponId: coupon.id,
+        channel,
+        eventType,
+      },
+    });
+
+    return { ok: true };
+  }
 }

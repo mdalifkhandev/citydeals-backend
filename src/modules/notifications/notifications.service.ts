@@ -1,14 +1,18 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../../database/prisma.service.js';
 import { ListNotificationsDto } from './dto/list-notifications.dto.js';
 import { SendNotificationDto } from './dto/send-notification.dto.js';
+import { sendExpoPushMessages } from './expo-push.util.js';
+import { sendFirebasePushMessages } from './firebase-push.util.js';
 
 export const PROXIMITY_QUEUE = 'proximity-notifications';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     @InjectQueue(PROXIMITY_QUEUE) private readonly queue: Queue<SendNotificationDto>,
     private readonly prisma: PrismaService,
@@ -37,17 +41,65 @@ export class NotificationsService {
         },
       })),
     });
-    return { recipients: users.length, created: notifications.count };
+
+    const push = await this.sendPushNotifications(users, dto);
+    return { recipients: users.length, created: notifications.count, push };
   }
 
   private resolveRecipients(dto: SendNotificationDto) {
     if (dto.sendTo === 'USER' && dto.userId) {
-      return this.prisma.user.findMany({ where: { id: dto.userId, notificationsPaused: false }, select: { id: true } });
+      return this.prisma.user.findMany({
+        where: { id: dto.userId, notificationsPaused: false },
+        select: { id: true, fcmToken: true },
+      });
     }
     if (dto.sendTo === 'AREA' && dto.areaId) {
-      return this.prisma.user.findMany({ where: { areaId: dto.areaId, notificationsPaused: false }, select: { id: true } });
+      return this.prisma.user.findMany({
+        where: { areaId: dto.areaId, notificationsPaused: false },
+        select: { id: true, fcmToken: true },
+      });
     }
-    return this.prisma.user.findMany({ where: { notificationsPaused: false }, select: { id: true } });
+    return this.prisma.user.findMany({
+      where: { notificationsPaused: false },
+      select: { id: true, fcmToken: true },
+    });
+  }
+
+  private async sendPushNotifications(
+    users: Array<{ id: string; fcmToken: string | null }>,
+    dto: SendNotificationDto,
+  ) {
+    const messages = users.map((user) => ({
+      token: user.fcmToken ?? '',
+      to: user.fcmToken ?? '',
+      title: dto.title,
+      body: dto.body,
+      data: {
+        sendTo: dto.sendTo ?? 'ALL',
+        areaId: dto.areaId,
+        userId: dto.userId,
+        merchantId: dto.merchantId,
+      },
+      channelId: 'deals',
+    }));
+
+    try {
+      const fcmMessages = messages.filter((message) => !message.to.startsWith('ExpoPushToken[') && !message.to.startsWith('ExponentPushToken['));
+      const expoMessages = messages.filter((message) => message.to.startsWith('ExpoPushToken[') || message.to.startsWith('ExponentPushToken['));
+      const [fcm, expo] = await Promise.all([
+        sendFirebasePushMessages(fcmMessages),
+        sendExpoPushMessages(expoMessages),
+      ]);
+      return {
+        sent: fcm.sent + expo.sent,
+        skipped: fcm.skipped + expo.skipped,
+        fcm,
+        expo,
+      };
+    } catch (error) {
+      this.logger.warn(error instanceof Error ? error.message : String(error));
+      return { sent: 0, skipped: users.length };
+    }
   }
 
   async findMine(userId: string, query: ListNotificationsDto) {

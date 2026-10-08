@@ -167,6 +167,7 @@ model Coupon {
   category Category? @relation(fields: [categoryId], references: [id])
   savedBy  SavedCoupon[]
   redemptions CouponRedemption[]
+  shareEvents CouponShareEvent[]
 
   @@index([areaId, status])
   @@index([categoryId])
@@ -269,4 +270,19 @@ model NotificationCooldown {
   merchant Merchant @relation(fields: [merchantId], references: [id])
 
   @@unique([userId, merchantId])
+}
+
+model CouponShareEvent {
+  id        String   @id @default(uuid())
+  couponId  String
+  channel   String
+  eventType String   @default("SHARE")
+  createdAt DateTime @default(now())
+
+  coupon Coupon @relation(fields: [couponId], references: [id])
+
+  @@index([couponId])
+  @@index([channel])
+  @@index([eventType])
+  @@index([createdAt])
 }

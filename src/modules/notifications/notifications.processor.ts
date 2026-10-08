@@ -4,6 +4,8 @@ import { Job } from 'bullmq';
 import { PrismaService } from '../../database/prisma.service.js';
 import { PROXIMITY_QUEUE } from './notifications.service.js';
 import { SendNotificationDto } from './dto/send-notification.dto.js';
+import { sendExpoPushMessages } from './expo-push.util.js';
+import { sendFirebasePushMessages } from './firebase-push.util.js';
 
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -19,9 +21,10 @@ export class NotificationsProcessor extends WorkerHost {
     if (!userId || !merchantId) return { skipped: true, reason: 'missing_proximity_target' };
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { notificationsPaused: true },
+      select: { notificationsPaused: true, fcmToken: true },
     });
-    if (user?.notificationsPaused) return { skipped: true, reason: 'notifications_paused' };
+    if (!user) return { skipped: true, reason: 'user_not_found' };
+    if (user.notificationsPaused) return { skipped: true, reason: 'notifications_paused' };
 
     const cooldown = await this.prisma.notificationCooldown.findUnique({
       where: { userId_merchantId: { userId, merchantId } },
@@ -41,6 +44,25 @@ export class NotificationsProcessor extends WorkerHost {
         data: { merchantId },
       },
     });
-    return { sent: true };
+    const token = user.fcmToken ?? '';
+    const push = token.startsWith('ExpoPushToken[') || token.startsWith('ExponentPushToken[')
+      ? await sendExpoPushMessages([
+          {
+            to: token,
+            title: job.data.title,
+            body: job.data.body,
+            data: { merchantId },
+            channelId: 'deals',
+          },
+        ])
+      : await sendFirebasePushMessages([
+          {
+            token,
+            title: job.data.title,
+            body: job.data.body,
+            data: { merchantId },
+          },
+        ]);
+    return { sent: true, push };
   }
 }
