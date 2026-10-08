@@ -1,10 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { GetUser } from '../../common/decorators/get-user.decorator.js';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
+import { StaffPermissionGuard } from '../../common/guards/staff-permission.guard.js';
 import { CouponsService } from './coupons.service.js';
 import { CreateCouponDto } from './dto/create-coupon.dto.js';
 import { FilterCouponDto } from './dto/filter-coupon.dto.js';
@@ -15,9 +17,10 @@ import { UpdateCouponDto } from './dto/update-coupon.dto.js';
 export class CouponsController {
   constructor(private readonly couponsService: CouponsService) {}
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, StaffPermissionGuard)
   @ApiBearerAuth('access-token')
   @Roles('ADMIN', 'ADVERTISER')
+  @RequirePermission('create-edit-coupons')
   @Post()
   create(@GetUser() user: { role: string; areaId?: string | null }, @Body() dto: CreateCouponDto) {
     return this.couponsService.create(user, dto);
@@ -77,17 +80,19 @@ export class CouponsController {
     return this.couponsService.findById(id, user?.id);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, StaffPermissionGuard)
   @ApiBearerAuth('access-token')
   @Roles('ADMIN', 'ADVERTISER')
+  @RequirePermission('create-edit-coupons')
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateCouponDto = {}) {
     return this.couponsService.update(id, dto);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, StaffPermissionGuard)
   @ApiBearerAuth('access-token')
   @Roles('ADMIN')
+  @RequirePermission('delete-content')
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.couponsService.remove(id);

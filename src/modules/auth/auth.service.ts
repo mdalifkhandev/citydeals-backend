@@ -90,7 +90,18 @@ export class AuthService {
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    return this.issueTokens(user);
+
+    // If ADMIN role, look up their StaffAccount to get the roleKey for permission checks
+    let staffRoleKey: string | undefined;
+    if (user.role === 'ADMIN') {
+      const staffAccount = await this.prisma.staffAccount.findUnique({
+        where: { email: user.email },
+        select: { roleKey: true },
+      });
+      staffRoleKey = staffAccount?.roleKey ?? undefined;
+    }
+
+    return this.issueTokens(user, staffRoleKey);
   }
 
   async getMe(userId: string) {
@@ -130,8 +141,20 @@ export class AuthService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    // Include staffRoleKey for ADMIN users so the dashboard can check permissions
+    let staffRoleKey: string | undefined;
+    if (user.role === 'ADMIN') {
+      const staffAccount = await this.prisma.staffAccount.findUnique({
+        where: { email: user.email },
+        select: { roleKey: true },
+      });
+      staffRoleKey = staffAccount?.roleKey ?? undefined;
+    }
+
     return {
       ...user,
+      staffRoleKey,
       stats: {
         savedCoupons: user._count.savedCoupons,
         couponRedeemed: user._count.couponRedemptions,
@@ -313,7 +336,7 @@ export class AuthService {
     }
   }
 
-  private async issueTokens(user: any) {
+  private async issueTokens(user: any, staffRoleKey?: string) {
     const payload = { sub: user.id, email: user.email, role: user.role, areaId: user.areaId };
     const accessToken = await this.jwtService.signAsync(payload);
     const refreshOptions: JwtSignOptions = {
@@ -330,7 +353,7 @@ export class AuthService {
     const { passwordHash: _passwordHash, refreshTokenHash: _refreshTokenHash, ...userWithoutSecrets } = user;
     
     return { 
-      user: userWithoutSecrets,
+      user: { ...userWithoutSecrets, staffRoleKey },
       tokens: { accessToken, refreshToken } 
     };
   }

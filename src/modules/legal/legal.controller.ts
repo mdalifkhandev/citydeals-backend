@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
+import { RequirePermission } from '../../common/decorators/require-permission.decorator.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
+import { StaffPermissionGuard } from '../../common/guards/staff-permission.guard.js';
 import { LegalService } from './legal.service.js';
 import { UpsertLegalDto } from './dto/upsert-legal.dto.js';
 
@@ -32,8 +34,9 @@ export class LegalController {
 
   @Put('pages/:type')
   @ApiBearerAuth('access-token')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, StaffPermissionGuard)
   @Roles(Role.ADMIN)
+  @RequirePermission('edit-app-pages')
   @ApiOperation({ summary: 'Update or create legal document content (Admin)' })
   upsertPage(@Param('type') type: string, @Body() dto: UpsertLegalDto) {
     return this.legalService.upsertPage(type, dto);

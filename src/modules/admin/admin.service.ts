@@ -145,6 +145,128 @@ export class AdminService {
     });
   }
 
+  async search(user: { id: string; role: string; areaId?: string | null }, q?: string) {
+    const term = q?.trim();
+    if (!term) return { query: '', results: [], total: 0 };
+
+    const scopedAreaWhere = user.role === 'ADVERTISER' && user.areaId ? { areaId: user.areaId } : {};
+    const contains = { contains: term, mode: 'insensitive' as const };
+
+    const [users, merchants, coupons, categories, staff] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { OR: [{ fullName: contains }, { email: contains }, { phoneNumber: contains }] },
+        select: { id: true, fullName: true, email: true, phoneNumber: true, status: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+      }),
+      this.prisma.merchant.findMany({
+        where: {
+          ...scopedAreaWhere,
+          OR: [
+            { name: contains },
+            { address: contains },
+            { phone: contains },
+            { email: contains },
+            { category: { name: contains } },
+            { area: { name: contains } },
+          ],
+        },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          status: true,
+          area: { select: { name: true, city: true } },
+          category: { select: { name: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 8,
+      }),
+      this.prisma.coupon.findMany({
+        where: {
+          ...scopedAreaWhere,
+          OR: [
+            { title: contains },
+            { description: contains },
+            { couponCode: contains },
+            { merchant: { name: contains } },
+            { area: { name: contains } },
+            { category: { name: contains } },
+          ],
+        },
+        select: {
+          id: true,
+          title: true,
+          couponCode: true,
+          status: true,
+          merchant: { select: { name: true } },
+          area: { select: { name: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 8,
+      }),
+      this.prisma.category.findMany({
+        where: { OR: [{ name: contains }, { slug: contains }, { description: contains }] },
+        select: { id: true, name: true, slug: true, status: true },
+        orderBy: { sortOrder: 'asc' },
+        take: 8,
+      }),
+      user.role === 'ADMIN'
+        ? this.prisma.staffAccount.findMany({
+            where: { OR: [{ fullName: contains }, { email: contains }, { roleKey: contains }] },
+            select: { id: true, fullName: true, email: true, roleKey: true, status: true },
+            orderBy: { updatedAt: 'desc' },
+            take: 8,
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const results = [
+      ...users.map((item) => ({
+        id: item.id,
+        type: 'User',
+        name: item.fullName || item.email,
+        detail: item.email || item.phoneNumber || 'App user',
+        status: item.status,
+        href: '/users',
+      })),
+      ...merchants.map((item) => ({
+        id: item.id,
+        type: 'Business',
+        name: item.name,
+        detail: [item.category?.name, item.area?.name, item.address].filter(Boolean).join(' • '),
+        status: item.status,
+        href: '/businesses',
+      })),
+      ...coupons.map((item) => ({
+        id: item.id,
+        type: 'Coupon',
+        name: item.title,
+        detail: [item.couponCode, item.merchant?.name, item.area?.name].filter(Boolean).join(' • '),
+        status: item.status,
+        href: '/coupons',
+      })),
+      ...categories.map((item) => ({
+        id: item.id,
+        type: 'Category',
+        name: item.name,
+        detail: item.slug,
+        status: item.status,
+        href: '/categories',
+      })),
+      ...staff.map((item) => ({
+        id: item.id,
+        type: 'Staff',
+        name: item.fullName,
+        detail: `${item.email} • ${item.roleKey}`,
+        status: item.status,
+        href: '/staff',
+      })),
+    ];
+
+    return { query: term, results, total: results.length };
+  }
+
   async redemptions(
     user: { id: string; role: string; areaId?: string | null },
     areaId?: string,
