@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { haversineDistanceMeters } from '../../common/utils/geo.util.js';
 import { PrismaService } from '../../database/prisma.service.js';
 import { QrService } from '../qr/qr.service.js';
@@ -13,10 +13,24 @@ export class AreasService {
   ) {}
 
   async create(dto: CreateAreaDto) {
+    const rawSlug = (dto.slug || dto.name || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    const baseSlug = rawSlug || 'area';
+
+    let uniqueSlug = baseSlug;
+    let counter = 1;
+    while (await this.prisma.area.findUnique({ where: { slug: uniqueSlug } })) {
+      counter++;
+      uniqueSlug = `${baseSlug}-${counter}`;
+    }
+
     const area = await this.prisma.area.create({
       data: {
         name: dto.name,
-        slug: dto.slug,
+        slug: uniqueSlug,
         city: dto.city,
         state: dto.state,
         latitude: dto.latitude ?? 40.416775,
@@ -71,10 +85,33 @@ export class AreasService {
   async update(id: string, dto: UpdateAreaDto) {
     const current = await this.prisma.area.findUnique({ where: { id } });
     if (!current) throw new NotFoundException('Area not found');
-    const qrCodeUrl = dto.slug && dto.slug !== current.slug
-      ? await this.qrService.generateAreaQrCode(dto.slug)
-      : undefined;
-    return this.prisma.area.update({ where: { id }, data: { ...dto, qrCodeUrl } });
+
+    const updateData: any = { ...dto };
+    if (updateData.slug && updateData.slug !== current.slug) {
+      updateData.slug = updateData.slug
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+
+      const existing = await this.prisma.area.findUnique({ where: { slug: updateData.slug } });
+      if (existing && existing.id !== id) {
+        throw new ConflictException(`Directory slug "${updateData.slug}" is already in use by another area.`);
+      }
+    }
+
+    const qrCodeUrl =
+      updateData.slug && updateData.slug !== current.slug
+        ? await this.qrService.generateAreaQrCode(updateData.slug)
+        : undefined;
+
+    return this.prisma.area.update({
+      where: { id },
+      data: {
+        ...updateData,
+        ...(qrCodeUrl ? { qrCodeUrl } : {}),
+      },
+    });
   }
 
   async remove(id: string) {

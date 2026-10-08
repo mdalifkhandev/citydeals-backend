@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { GetUser } from '../../common/decorators/get-user.decorator.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
@@ -24,6 +25,15 @@ export class AdminController {
   @Get('dashboard/redemptions/daily') daily() { return this.dashboard.dailyRedemptions(); }
   @Get('dashboard/redemptions/by-area') byArea() { return this.dashboard.redemptionsByArea(); }
   @Get('dashboard/trending-coupons') trending() { return this.dashboard.trendingCoupons(); }
+  @Get('redemptions')
+  @Roles('ADMIN', 'ADVERTISER')
+  redemptions(
+    @GetUser() user: { id: string; role: string; areaId?: string | null },
+    @Query('areaId') areaId?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.admin.redemptions(user, areaId, search);
+  }
   @Get('users') users() { return this.admin.users(); }
   @Get('users/:id') user(@Param('id') id: string) { return this.admin.user(id); }
   @Patch('users/:id/status') updateUserStatus(@Param('id') id: string, @Body() dto: UpdateUserStatusDto) { return this.admin.updateUserStatus(id, dto); }
