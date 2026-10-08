@@ -27,7 +27,14 @@ export class NotificationsController {
   }
 
   @UseGuards(RolesGuard)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'ADVERTISER')
+  @Get('admin/history')
+  findAllAdmin(@Query('search') search?: string) {
+    return this.notificationsService.findAllAdmin({ search });
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'ADVERTISER')
   @Post('send')
   send(@Body() dto: SendNotificationDto) {
     return this.notificationsService.send(dto);

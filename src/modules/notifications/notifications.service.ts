@@ -76,4 +76,38 @@ export class NotificationsService {
     if (!notification) throw new NotFoundException('Notification not found');
     return this.prisma.notification.update({ where: { id }, data: { readAt: new Date() } });
   }
+
+  async findAllAdmin(query?: { search?: string }) {
+    const where: any = {};
+    if (query?.search?.trim()) {
+      const term = query.search.trim();
+      where.OR = [
+        { title: { contains: term, mode: 'insensitive' } },
+        { body: { contains: term, mode: 'insensitive' } },
+        { user: { fullName: { contains: term, mode: 'insensitive' } } },
+        { user: { email: { contains: term, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.notification.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              area: { select: { id: true, name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      this.prisma.notification.count({ where }),
+    ]);
+
+    return { items, total };
+  }
 }
