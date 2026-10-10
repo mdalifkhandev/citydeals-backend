@@ -14,7 +14,7 @@ export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
-    @InjectQueue(PROXIMITY_QUEUE) private readonly queue: Queue<SendNotificationDto>,
+    @InjectQueue(PROXIMITY_QUEUE) private readonly queue: Queue<any>,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -24,6 +24,79 @@ export class NotificationsService {
       backoff: { type: 'exponential', delay: 5000 },
       removeOnComplete: true,
     });
+  }
+
+  async sendGroupedProximityNotificationSync(userId: string, merchantIds: string[], totalCoupons: number) {
+    console.log(`[Push] Starting sync push for user: ${userId}, merchants: ${merchantIds.length}`);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notificationsPaused: true, fcmToken: true },
+    });
+    if (!user) {
+      console.log(`[Push] User not found`);
+      return;
+    }
+    if (user.notificationsPaused) {
+      console.log(`[Push] User notifications paused`);
+      return;
+    }
+
+    const cooldowns = await this.prisma.notificationCooldown.findMany({
+      where: { userId, merchantId: { in: merchantIds } },
+    });
+    
+    const COOLDOWN_MS = 60 * 1000; // 1 minute
+    const now = Date.now();
+    const cooledDownMerchantIds = new Set(
+      cooldowns.filter((c) => now - c.lastSentAt.getTime() < COOLDOWN_MS).map((c) => c.merchantId)
+    );
+
+    const validMerchantIds = merchantIds.filter((id) => !cooledDownMerchantIds.has(id));
+    if (validMerchantIds.length === 0) {
+      console.log(`[Push] All merchants on cooldown`);
+      return;
+    }
+
+    // Set new cooldowns
+    await Promise.all(
+      validMerchantIds.map((merchantId) =>
+        this.prisma.notificationCooldown.upsert({
+          where: { userId_merchantId: { userId, merchantId } },
+          update: { lastSentAt: new Date() },
+          create: { userId, merchantId, lastSentAt: new Date() },
+        })
+      )
+    );
+
+    const title = 'New Deals Nearby!';
+    const body = `We found ${totalCoupons} active coupons from ${validMerchantIds.length} restaurants near your location. Tap to view!`;
+
+    await this.prisma.notification.create({
+      data: {
+        userId,
+        title,
+        body,
+        data: { grouped: 'true', merchantIds: validMerchantIds },
+      },
+    });
+
+    const token = user.fcmToken ?? '';
+    if (!token) {
+      console.log(`[Push] User missing FCM token`);
+      return;
+    }
+
+    console.log(`[Push] Sending to token: ${token}`);
+    try {
+      if (token.startsWith('ExpoPushToken[') || token.startsWith('ExponentPushToken[')) {
+        await sendExpoPushMessages([{ to: token, title, body, data: { grouped: true }, channelId: 'deals' }]);
+      } else {
+        await sendFirebasePushMessages([{ token, title, body, data: { grouped: true } }]);
+      }
+      console.log(`[Push] Push sent successfully!`);
+    } catch (err: any) {
+      console.log(`[Push] Failed to send push:`, err.message);
+    }
   }
 
   async send(dto: SendNotificationDto) {

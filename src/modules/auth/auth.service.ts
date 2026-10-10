@@ -13,6 +13,8 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
 import { VerifyOtpDto } from './dto/verify-otp.dto.js';
 import { ResetPasswordDto } from './dto/reset-password.dto.js';
 
+import { NotificationsService } from '../notifications/notifications.service.js';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -21,6 +23,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly areasService: AreasService,
     private readonly mailService: MailService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -166,7 +169,7 @@ export class AuthService {
 
   async syncLocation(userId: string, dto: SyncLocationDto) {
     const area = await this.areasService.resolveArea(dto.latitude, dto.longitude);
-    return this.prisma.user.update({
+    const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: {
         latitude: dto.latitude,
@@ -192,6 +195,41 @@ export class AuthService {
         },
       },
     });
+
+    // Proximity logic
+    const merchants = area
+      ? await this.prisma.merchant.findMany({
+          where: { areaId: area.id, status: 'ACTIVE' },
+          include: { coupons: { where: { status: 'ACTIVE' } } },
+        })
+      : [];
+
+    const { haversineDistanceMeters } = await import('../../common/utils/geo.util.js');
+    const nearbyMerchants = merchants
+      .map((merchant) => ({
+        ...merchant,
+        distanceMeters: haversineDistanceMeters(
+          { latitude: dto.latitude, longitude: dto.longitude },
+          { latitude: Number(merchant.latitude), longitude: Number(merchant.longitude) },
+        ),
+      }))
+      .filter((merchant) => merchant.distanceMeters <= merchant.radiusMeters && merchant.coupons.length > 0);
+
+    if (nearbyMerchants.length > 0) {
+      const merchantIds = nearbyMerchants.map((m) => m.id);
+      const totalCoupons = nearbyMerchants.reduce((sum, m) => sum + m.coupons.length, 0);
+      
+      console.log(`[Location Sync] Sending proximity notification synchronously for user ${userId} with ${merchantIds.length} merchants and ${totalCoupons} coupons`);
+      await this.notificationsService.sendGroupedProximityNotificationSync(
+        userId,
+        merchantIds,
+        totalCoupons,
+      );
+    } else {
+      console.log(`[Location Sync] No nearby active merchants found for user ${userId}`);
+    }
+    
+    return updatedUser;
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {

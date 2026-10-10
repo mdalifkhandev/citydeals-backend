@@ -132,4 +132,70 @@ export class MailService {
       return false;
     }
   }
+
+  async sendStaffWelcomeEmail(to: string, name: string, defaultPassword: string): Promise<boolean> {
+    const user = this.configService.get<string>('mail.user') || process.env.NODEMAIL_USER || process.env.SMTP_USER || '';
+    const from = this.configService.get<string>('mail.from') || process.env.SMTP_FROM || (user ? `CityDeals <${user}>` : 'CityDeals <no-reply@citydeals.com>');
+    const subject = `Welcome to CityDeals, ${name}!`;
+
+    const text = `Hello ${name},\n\n`
+      + `An admin has created a staff account for you on CityDeals.\n\n`
+      + `Here are your login details:\n`
+      + `Email: ${to}\n`
+      + `Password: ${defaultPassword}\n\n`
+      + `Please login and change your password as soon as possible.\n\n`
+      + `Best regards,\nThe CityDeals Team`;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #333; line-height: 1.6; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; border-radius: 8px; }
+    .box { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    h2 { color: #1a1a1a; margin-top: 0; }
+    .creds { background: #f0f0f0; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 16px; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="box">
+      <h2>Welcome to CityDeals!</h2>
+      <p>Hello ${name},</p>
+      <p>An admin has created a staff account for you. Below are your temporary login details:</p>
+      <div class="creds">
+        <strong>Email:</strong> ${to}<br/>
+        <strong>Password:</strong> ${defaultPassword}
+      </div>
+      <p>Please log in to your account and change your password as soon as possible to ensure your account remains secure.</p>
+      <p style="margin-top: 30px; font-size: 0.9em; color: #666;">
+        Best regards,<br/>The CityDeals Team
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    if (!this.transporter) {
+      this.logger.log(`[MOCK EMAIL] To: ${to} | Subject: "${subject}" | Default Password: ${defaultPassword}`);
+      return true;
+    }
+
+    try {
+      const info = await this.transporter.sendMail({
+        from,
+        to,
+        subject,
+        text,
+        html,
+      });
+      this.logger.log(`Staff welcome email sent to ${to} (MessageId: ${info.messageId})`);
+      return true;
+    } catch (error: any) {
+      this.logger.error(`Failed to send email to ${to}: ${error?.message || error}`);
+      return false;
+    }
+  }
 }

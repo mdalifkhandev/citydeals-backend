@@ -16,7 +16,10 @@ export class LocationService {
   async sync(user: { id: string }, dto: SyncLocationDto) {
     const area = await this.areasService.resolveArea(dto.latitude, dto.longitude);
     const merchants = area
-      ? await this.prisma.merchant.findMany({ where: { areaId: area.id } })
+      ? await this.prisma.merchant.findMany({
+          where: { areaId: area.id, status: 'ACTIVE' },
+          include: { coupons: { where: { status: 'ACTIVE' } } },
+        })
       : [];
 
     const nearbyMerchants = merchants
@@ -27,23 +30,28 @@ export class LocationService {
           { latitude: Number(merchant.latitude), longitude: Number(merchant.longitude) },
         ),
       }))
-      .filter((merchant) => merchant.distanceMeters <= merchant.radiusMeters);
+      .filter((merchant) => merchant.distanceMeters <= merchant.radiusMeters && merchant.coupons.length > 0);
+
+    console.log(`Found ${nearbyMerchants.length} nearby merchants out of ${merchants.length} total merchants in area`);
 
     await this.prisma.user.update({
       where: { id: user.id },
       data: { latitude: dto.latitude, longitude: dto.longitude, fcmToken: dto.fcmToken, areaId: area?.id },
     });
 
-    await Promise.all(
-      nearbyMerchants.map((merchant) =>
-        this.notificationsService.enqueueProximityNotification({
-          userId: user.id,
-          merchantId: merchant.id,
-          title: `Deal nearby: ${merchant.name}`,
-          body: 'Open CityDeals to see offers near you.',
-        }),
-      ),
-    );
+    if (nearbyMerchants.length > 0) {
+      const merchantIds = nearbyMerchants.map((m) => m.id);
+      const totalCoupons = nearbyMerchants.reduce((sum, m) => sum + m.coupons.length, 0);
+      
+      console.log(`Sending proximity notification synchronously for user ${user.id} with ${merchantIds.length} merchants and ${totalCoupons} coupons`);
+      await this.notificationsService.sendGroupedProximityNotificationSync(
+        user.id,
+        merchantIds,
+        totalCoupons,
+      );
+    } else {
+      console.log(`No nearby active merchants found for user ${user.id}`);
+    }
 
     return {
       area,

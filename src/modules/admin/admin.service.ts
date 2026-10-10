@@ -1,5 +1,7 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service.js';
+import { MailService } from '../mail/mail.service.js';
 import { CreateStaffDto } from './dto/create-staff.dto.js';
 import { UpdateStaffRoleDto } from './dto/update-staff-role.dto.js';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto.js';
@@ -7,7 +9,10 @@ import { UpsertRolePermissionsDto } from './dto/upsert-role-permissions.dto.js';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   users() {
     return this.prisma.user.findMany({
@@ -67,14 +72,40 @@ export class AdminService {
       throw new ConflictException(`A staff account with email ${email} already exists`);
     }
 
-    return this.prisma.staffAccount.create({
-      data: {
-        fullName: dto.fullName.trim(),
-        email,
-        roleKey: dto.roleKey,
-        status: (dto.status as any) || 'ACTIVE',
-      },
+    const defaultPassword = '12345678';
+    const passwordHash = await bcrypt.hash(defaultPassword, 12);
+
+    const staffAccount = await this.prisma.$transaction(async (tx) => {
+      // Upsert User to ensure they can log in
+      await tx.user.upsert({
+        where: { email },
+        update: {
+          role: 'ADMIN',
+          passwordHash,
+          fullName: dto.fullName.trim(),
+        },
+        create: {
+          email,
+          fullName: dto.fullName.trim(),
+          passwordHash,
+          role: 'ADMIN',
+        },
+      });
+
+      return tx.staffAccount.create({
+        data: {
+          fullName: dto.fullName.trim(),
+          email,
+          roleKey: dto.roleKey,
+          status: (dto.status as any) || 'ACTIVE',
+        },
+      });
     });
+
+    // Send welcome email with login details
+    await this.mailService.sendStaffWelcomeEmail(email, dto.fullName.trim(), defaultPassword);
+
+    return staffAccount;
   }
 
   async updateStaffRole(id: string, dto: UpdateStaffRoleDto) {

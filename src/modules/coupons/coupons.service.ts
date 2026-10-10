@@ -4,6 +4,7 @@ import { PrismaService } from '../../database/prisma.service.js';
 import { CreateCouponDto } from './dto/create-coupon.dto.js';
 import { FilterCouponDto } from './dto/filter-coupon.dto.js';
 import { UpdateCouponDto } from './dto/update-coupon.dto.js';
+import { haversineDistanceMeters } from '../../common/utils/geo.util.js';
 
 @Injectable()
 export class CouponsService {
@@ -94,7 +95,7 @@ export class CouponsService {
       ];
     }
 
-    const coupons = await this.prisma.coupon.findMany({
+    let coupons = await this.prisma.coupon.findMany({
       where: whereClause,
       include: {
         merchant: {
@@ -105,6 +106,54 @@ export class CouponsService {
       },
       orderBy: [{ isWhitelisted: 'desc' }, { createdAt: 'desc' }],
     });
+
+    if (areaId && coupons.length < 13) {
+      const extraWhereClause = { ...whereClause, areaId: { not: areaId } };
+      const extraCoupons = await this.prisma.coupon.findMany({
+        where: extraWhereClause,
+        include: {
+          merchant: {
+            include: { category: true },
+          },
+          area: true,
+          category: true,
+        },
+        take: 13 - coupons.length,
+        orderBy: [{ isWhitelisted: 'desc' }, { createdAt: 'desc' }],
+      });
+      coupons = [...coupons, ...extraCoupons];
+    }
+
+    // Add distance and sort if user location is known
+    let userRecord = null;
+    if (user?.id) {
+      userRecord = await this.prisma.user.findUnique({
+        where: { id: user.id },
+        select: { latitude: true, longitude: true },
+      });
+    }
+
+    if (userRecord?.latitude && userRecord?.longitude) {
+      const userLat = Number(userRecord.latitude);
+      const userLon = Number(userRecord.longitude);
+      
+      coupons = coupons.map(c => {
+        const mLat = Number(c.merchant.latitude);
+        const mLon = Number(c.merchant.longitude);
+        const distanceMeters = (mLat && mLon) 
+          ? haversineDistanceMeters({ latitude: userLat, longitude: userLon }, { latitude: mLat, longitude: mLon })
+          : Infinity;
+        
+        return { ...c, distanceMeters };
+      });
+
+      // Sort: Whitelisted first, then nearest first
+      coupons.sort((a: any, b: any) => {
+        if (a.isWhitelisted && !b.isWhitelisted) return -1;
+        if (!a.isWhitelisted && b.isWhitelisted) return 1;
+        return a.distanceMeters - b.distanceMeters;
+      });
+    }
 
     if (user?.id) {
       const savedCoupons = await this.prisma.savedCoupon.findMany({

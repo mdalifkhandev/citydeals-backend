@@ -7,7 +7,7 @@ import { SendNotificationDto } from './dto/send-notification.dto.js';
 import { sendExpoPushMessages } from './expo-push.util.js';
 import { sendFirebasePushMessages } from './firebase-push.util.js';
 
-const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const COOLDOWN_MS = 60 * 1000; // 1 minute for testing
 
 @Injectable()
 @Processor(PROXIMITY_QUEUE)
@@ -16,7 +16,11 @@ export class NotificationsProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<SendNotificationDto>) {
+  async process(job: Job<any>) {
+    if (job.name === 'send-grouped-proximity') {
+      return this.processGrouped(job);
+    }
+
     const { userId, merchantId } = job.data;
     if (!userId || !merchantId) return { skipped: true, reason: 'missing_proximity_target' };
     const user = await this.prisma.user.findUnique({
@@ -63,6 +67,66 @@ export class NotificationsProcessor extends WorkerHost {
             data: { merchantId },
           },
         ]);
+    return { sent: true, push };
+  }
+
+  private async processGrouped(job: Job<any>) {
+    const { userId, merchantIds, totalCoupons } = job.data;
+    if (!userId || !merchantIds || merchantIds.length === 0) return { skipped: true, reason: 'missing_targets' };
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notificationsPaused: true, fcmToken: true },
+    });
+    if (!user) return { skipped: true, reason: 'user_not_found' };
+    if (user.notificationsPaused) return { skipped: true, reason: 'notifications_paused' };
+
+    const cooldowns = await this.prisma.notificationCooldown.findMany({
+      where: { userId, merchantId: { in: merchantIds } },
+    });
+    
+    const now = Date.now();
+    const cooledDownMerchantIds = new Set(
+      cooldowns.filter((c: any) => now - c.lastSentAt.getTime() < COOLDOWN_MS).map((c: any) => c.merchantId)
+    );
+
+    const validMerchantIds = merchantIds.filter((id: string) => !cooledDownMerchantIds.has(id));
+    if (validMerchantIds.length === 0) return { skipped: true, reason: 'all_cooldown' };
+
+    // Set new cooldowns
+    await Promise.all(
+      validMerchantIds.map((merchantId: string) =>
+        this.prisma.notificationCooldown.upsert({
+          where: { userId_merchantId: { userId, merchantId } },
+          update: { lastSentAt: new Date() },
+          create: { userId, merchantId, lastSentAt: new Date() },
+        })
+      )
+    );
+
+    const title = 'New Deals Nearby!';
+    const body = `We found ${totalCoupons} active coupons from ${validMerchantIds.length} restaurants near your location. Tap to view!`;
+
+    await this.prisma.notification.create({
+      data: {
+        userId,
+        title,
+        body,
+        data: { grouped: 'true', merchantIds: validMerchantIds },
+      },
+    });
+
+    const token = user.fcmToken ?? '';
+    if (!token) return { skipped: false, push: null };
+
+    const push = token.startsWith('ExpoPushToken[') || token.startsWith('ExponentPushToken[')
+      ? await sendExpoPushMessages([
+          { to: token, title, body, data: { grouped: true }, channelId: 'deals' },
+        ])
+      : await sendFirebasePushMessages([
+          { token, title, body, data: { grouped: true } },
+        ]);
+        
     return { sent: true, push };
   }
 }
